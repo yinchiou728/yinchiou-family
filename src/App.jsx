@@ -112,12 +112,12 @@ function fileToBase64(file){
     img.onload=()=>{
       URL.revokeObjectURL(url);
       const canvas=document.createElement("canvas");
-      const MAX=800;
+      const MAX=300;
       let w=img.width,h=img.height;
       if(w>h){if(w>MAX){h=Math.round(h*MAX/w);w=MAX;}}else{if(h>MAX){w=Math.round(w*MAX/h);h=MAX;}}
       canvas.width=w;canvas.height=h;
       canvas.getContext("2d").drawImage(img,0,0,w,h);
-      res(canvas.toDataURL("image/jpeg",0.7));
+     res(canvas.toDataURL("image/jpeg",0.3));
     };
     img.onerror=rej;
     img.src=url;
@@ -161,6 +161,7 @@ export default function App() {
       const b64=await fileToBase64(file);
       const lsKey=`photo_${activeChild}_${selectedDate}_${mealId}_${ba}`;
       localStorage.setItem(lsKey,b64);
+      try{await set(ref(db,`photos/${activeChild}/${selectedDate}/${mealId}/${ba}`),b64);}catch{}
       const m=dayData.meals||{};
 const updated={...dayData,meals:{...m,[mealId]:{...(m[mealId]||{}),[ba]:b64}}};
       setDayData(updated);
