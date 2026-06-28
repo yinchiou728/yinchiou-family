@@ -94,6 +94,7 @@ async function loadDay(childId,date){
     for(const mid of ["breakfast","lunch","dinner"]){
       for(const ba of ["before","after"]){
         try{const v=localStorage.getItem(`photo_${childId}_${date}_${mid}_${ba}`);if(v){if(!meals[mid])meals[mid]={};meals[mid][ba]=v;}}catch{}
+        try{const ps=await get(ref(db,`photos/${childId}/${date}/${mid}/${ba}`));if(ps.exists()){if(!meals[mid])meals[mid]={};meals[mid][ba]=ps.val();}}catch{}
       }
     }
     return {...emptyDay(),...data,meals};
