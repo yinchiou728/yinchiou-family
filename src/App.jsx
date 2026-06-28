@@ -99,7 +99,22 @@ function emptyDay(){
   return {checks:{},meals:{},reflections:{},piano:{done:false,mins:""},reading:{done:false,mins:"",book:"",summary:""},extraActivity:"",missedReason:"",parentNote:{mummy:"",daddy:""},savedAt:null};
 }
 function fileToBase64(file){
-  return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(file);});
+  return new Promise((res,rej)=>{
+    const img=new Image();
+    const url=URL.createObjectURL(file);
+    img.onload=()=>{
+      URL.revokeObjectURL(url);
+      const canvas=document.createElement("canvas");
+      const MAX=800;
+      let w=img.width,h=img.height;
+      if(w>h){if(w>MAX){h=Math.round(h*MAX/w);w=MAX;}}else{if(h>MAX){w=Math.round(w*MAX/h);h=MAX;}}
+      canvas.width=w;canvas.height=h;
+      canvas.getContext("2d").drawImage(img,0,0,w,h);
+      res(canvas.toDataURL("image/jpeg",0.7));
+    };
+    img.onerror=rej;
+    img.src=url;
+  });
 }
 
 // ══════════════════════════════════════════════════════════════
