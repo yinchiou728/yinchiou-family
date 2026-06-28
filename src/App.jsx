@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from "react";
+import { db } from "./firebase";
+import { ref, set, get } from "firebase/database";
 
 // ── SCHEDULES ──────────────────────────────────────────────
 const WELLS_SCHEDULE = {
@@ -82,13 +84,16 @@ function getWeekDates(ws) {
   for(let i=0;i<7;i++){const d=new Date(base);d.setDate(base.getDate()+i);dates.push(d.toISOString().slice(0,10));}
   return dates;
 }
-function sk(childId,date){return `v2:${childId}:${date}`;}
+function sk(childId,date){return `v2/${childId}/${date}`;}
 
-function loadDay(childId,date){
-  try{const v=localStorage.getItem(sk(childId,date));return v?JSON.parse(v):null;}catch{return null;}
+async function loadDay(childId,date){
+  try{
+    const snap=await get(ref(db,sk(childId,date)));
+    return snap.exists()?snap.val():null;
+  }catch{return null;}
 }
-function saveDay(childId,date,data){
-  try{localStorage.setItem(sk(childId,date),JSON.stringify(data));}catch{}
+async function saveDay(childId,date,data){
+  try{await set(ref(db,sk(childId,date)),data);}catch{}
 }
 function emptyDay(){
   return {checks:{},meals:{},reflections:{},piano:{done:false,mins:""},reading:{done:false,mins:"",book:"",summary:""},extraActivity:"",missedReason:"",parentNote:{mummy:"",daddy:""},savedAt:null};
@@ -114,11 +119,11 @@ export default function App() {
 
   useEffect(()=>{if(page==="child")loadChildDay();},[activeChild,selectedDate,page]);
 
-  function loadChildDay(){const d=loadDay(activeChild,selectedDate);setDayData(d||emptyDay());}
+  async function loadChildDay(){const d=await loadDay(activeChild,selectedDate);setDayData(d||emptyDay());}
 
-  function persist(updated){
+  async function persist(updated){
     setDayData(updated);setSaving(true);
-    saveDay(activeChild,selectedDate,{...updated,savedAt:new Date().toISOString()});
+    await saveDay(activeChild,selectedDate,{...updated,savedAt:new Date().toISOString()});
     setSaving(false);setSaved(true);setTimeout(()=>setSaved(false),1500);
   }
 
@@ -143,21 +148,13 @@ export default function App() {
   const doneItems=doneSched+(dayData.piano?.done?1:0)+(dayData.reading?.done?1:0);
   const pct=totalItems>0?Math.round(doneItems/totalItems*100):0;
 
-  function exportAllData(){
+  async function exportAllData(){
     try{
-      const allKeys=Object.keys(localStorage).filter(k=>k.startsWith("v2:"));
       const exportObj={exportedAt:new Date().toISOString(),family:"Chiou & Gan",children:{}};
-      for(const key of allKeys){
+      for(const cid of Object.keys(CHILDREN)){
         try{
-          const v=localStorage.getItem(key);
-          if(v){
-            const parts=key.split(":");
-            if(parts.length>=3){
-              const cid=parts[1]; const date=parts[2];
-              if(!exportObj.children[cid])exportObj.children[cid]={};
-              exportObj.children[cid][date]=JSON.parse(v);
-            }
-          }
+          const snap=await get(ref(db,`v2/${cid}`));
+          if(snap.exists()) exportObj.children[cid]=snap.val();
         }catch{}
       }
       const blob=new Blob([JSON.stringify(exportObj,null,2)],{type:"application/json"});
@@ -450,9 +447,9 @@ function ParentView({onBack,pinUnlocked,setPinUnlocked}){
 
   useEffect(()=>{if(pinUnlocked)loadAll();},[pinUnlocked,selectedDate]);
 
-  function loadAll(){
+  async function loadAll(){
     setLoading(true);const result={};
-    for(const cid of Object.keys(CHILDREN)){const d=loadDay(cid,selectedDate);result[cid]=d||emptyDay();}
+    for(const cid of Object.keys(CHILDREN)){const d=await loadDay(cid,selectedDate);result[cid]=d||emptyDay();}
     setData(result);setLoading(false);
   }
 
@@ -601,13 +598,13 @@ function ParentView({onBack,pinUnlocked,setPinUnlocked}){
                   <div style={{marginBottom:8}}>
                     <div style={{fontSize:11,fontWeight:600,color:"#e879a0",marginBottom:4}}>👩 Mummy's message</div>
                     <textarea placeholder={`Write something for ${c.name} to read...`} value={cd.parentNote?.mummy||""}
-                      onChange={e=>{const upd={...cd,parentNote:{...cd.parentNote,mummy:e.target.value}};setData(prev=>({...prev,[c.id]:upd}));saveDay(c.id,selectedDate,upd);}} rows={2}
+                      onChange={async e=>{const upd={...cd,parentNote:{...cd.parentNote,mummy:e.target.value}};setData(prev=>({...prev,[c.id]:upd}));await saveDay(c.id,selectedDate,upd);}} rows={2}
                       style={{width:"100%",border:"1.5px solid #fce7f3",borderRadius:10,padding:"8px 12px",fontSize:13,resize:"none",fontFamily:"inherit",boxSizing:"border-box",background:"#fff9fb"}}/>
                   </div>
                   <div>
                     <div style={{fontSize:11,fontWeight:600,color:"#3b82f6",marginBottom:4}}>👨 Daddy's message</div>
                     <textarea placeholder={`Write something for ${c.name} to read...`} value={cd.parentNote?.daddy||""}
-                      onChange={e=>{const upd={...cd,parentNote:{...cd.parentNote,daddy:e.target.value}};setData(prev=>({...prev,[c.id]:upd}));saveDay(c.id,selectedDate,upd);}} rows={2}
+                      onChange={async e=>{const upd={...cd,parentNote:{...cd.parentNote,daddy:e.target.value}};setData(prev=>({...prev,[c.id]:upd}));await saveDay(c.id,selectedDate,upd);}} rows={2}
                       style={{width:"100%",border:"1.5px solid #dbeafe",borderRadius:10,padding:"8px 12px",fontSize:13,resize:"none",fontFamily:"inherit",boxSizing:"border-box",background:"#f0f7ff"}}/>
                   </div>
                 </div>
@@ -628,11 +625,11 @@ function WeeklyReport({onBack}){
 
   useEffect(()=>{loadReport();},[weekStart]);
 
-  function loadReport(){
+  async function loadReport(){
     setLoading(true);const result={};
     for(const cid of Object.keys(CHILDREN)){
       result[cid]={};
-      for(const d of getWeekDates(weekStart)){result[cid][d]=loadDay(cid,d)||emptyDay();}
+      for(const d of getWeekDates(weekStart)){result[cid][d]=await loadDay(cid,d)||emptyDay();}
     }
     setReportData(result);setLoading(false);
   }
