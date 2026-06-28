@@ -150,7 +150,14 @@ export default function App() {
   function setParentNote(who,val){persist({...dayData,parentNote:{...dayData.parentNote,[who]:val}});}
   async function uploadMealPhoto(mealId,ba,file){
     if(!isToday)return;
-    try{const b64=await fileToBase64(file);persist({...dayData,meals:{...dayData.meals,[mealId]:{...dayData.meals[mealId],[ba]:b64}}});}catch{}
+    try{
+      const b64=await fileToBase64(file);
+      const lsKey=`photo_${activeChild}_${selectedDate}_${mealId}_${ba}`;
+      localStorage.setItem(lsKey,b64);
+      const updated={...dayData,meals:{...dayData.meals,[mealId]:{...dayData.meals[mealId],[ba]:b64}}};
+      setDayData(updated);
+      setSaved(true);setTimeout(()=>setSaved(false),1500);
+    }catch(e){alert("Photo error: "+e.message);}
   }
   function removeMealPhoto(mealId,ba){
     if(!isToday)return;
