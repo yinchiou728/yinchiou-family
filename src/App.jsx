@@ -154,7 +154,7 @@ export default function App() {
       const b64=await fileToBase64(file);
       const lsKey=`photo_${activeChild}_${selectedDate}_${mealId}_${ba}`;
       localStorage.setItem(lsKey,b64);
-      const updated={...dayData,meals:{...dayData.meals,[mealId]:{...dayData.meals[mealId],[ba]:b64}}};
+      const updated={...dayData,meals:{...(dayData.meals||{}),[mealId]:{...((dayData.meals||{})[mealId]||{}),[ba]:b64}}};
       setDayData(updated);
       setSaved(true);setTimeout(()=>setSaved(false),1500);
     }catch(e){alert("Photo error: "+e.message);}
